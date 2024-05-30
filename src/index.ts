@@ -110,7 +110,7 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
   const updateQuery = `
     UPDATE member_lesson
     SET \`CURRENT_TIME\` = ?
-    WHERE MEMBER_ID = ? AND ID = ? AND MEMBER_COURSE_ID = ? AND FINISHED = 0
+    WHERE MEMBER_ID = ? AND ID = ? AND FINISHED = 0
   `;
 
   try {
