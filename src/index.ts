@@ -94,11 +94,11 @@ app.use((req, res, next) => {
 });
 
 app.post("/lesson/dwUpdateTime", async (req, res) => {
-  const { memberId, lessonId, currentTime, memberCourse }: LessonData =
+  const { memberId, lessonId, currentTime }: LessonData =
     req.body; // Extract data from request body
 
   // Validate presence of required fields
-  if (!memberId || !lessonId || !currentTime || !memberCourse) {
+  if (!memberId || !lessonId || !currentTime) {
     return res
       .status(400)
       .send(
@@ -110,7 +110,7 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
   const updateQuery = `
     UPDATE member_lesson
     SET \`CURRENT_TIME\` = ?
-    WHERE MEMBER_ID = ? AND LESSON_ID = ? AND MEMBER_COURSE_ID = ? AND FINISHED = 0
+    WHERE MEMBER_ID = ? AND ID = ? AND MEMBER_COURSE_ID = ? AND FINISHED = 0
   `;
 
   try {
@@ -120,8 +120,7 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
       const [updateResults] = await connection.query(updateQuery, [
         currentTime,
         memberId,
-        lessonId,
-        memberCourse,
+        lessonId
       ]);
 
       if ((updateResults as any).affectedRows === 1) {
