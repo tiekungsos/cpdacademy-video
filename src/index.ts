@@ -3,6 +3,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 import mysql from "mysql2/promise";
 import cors from "cors";
+import { log } from "console";
 
 dotenv.config();
 
@@ -110,7 +111,7 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
   const updateQuery = `
     UPDATE member_lesson
     SET \`CURRENT_TIME\` = ?
-    WHERE MEMBER_ID = ? AND ID = ? AND FINISHED = 0
+    WHERE ID = ? AND MEMBER_ID = ? AND FINISHED = 0
   `;
 
   try {
@@ -118,17 +119,16 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
     const connection = await pool.getConnection();
     try {
       const [updateResults] = await connection.query(updateQuery, [
-        currentTime,
-        memberId,
-        lessonId
+        currentTime + ':00',
+        lessonId,
+        memberId
       ]);
-
       if ((updateResults as any).affectedRows === 1) {
-        console.log("Lesson time updated successfully");
+        console.log("Lesson time updated successfully", lessonId, memberId);
         res.send("Lesson time saved!");
       } else {
-        console.log("No lesson found or already finished");
-        res.status(404).send("Lesson not found or already finished");
+        console.log("No lesson found or already finished", lessonId, memberId);
+        res.status(400).send("Lesson not found or already finished");
       }
     } finally {
       connection.release(); // Release the connection back to the pool
