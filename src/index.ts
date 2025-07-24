@@ -59,7 +59,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Specify allowed origins
-const allowedOrigins = ["http://127.0.0.1", "https://yourdomain.com"];
+const allowedOrigins = ["http://127.0.0.1", "https://demo.cpdacademy.co", "https://cpdacademy.co", "https://www.cpdacademy.co"];
 
 const corsOptions = {
   origin: (origin: any, callback: any) => {
