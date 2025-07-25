@@ -94,19 +94,37 @@ app.use((req, res, next) => {
 });
 
 app.post("/lesson/dwUpdateTime", async (req, res) => {
-  const { memberId, lessonId, currentTime }: LessonData =
-    req.body; // Extract data from request body
+  const { memberId, lessonId, currentTime, logout = 0, login = 0, answer = 'ไม่มี' }: LessonData & {
+    logout?: number;
+    login?: number;
+    answer?: string;
+  } = req.body; // Extract data from request body
 
+  console.log("Received request to update lesson time:", {
+    memberId,
+    lessonId,
+    currentTime,
+    logout,
+    login,
+    answer
+  });
+  
   // Validate presence of required fields
   if (!memberId || !lessonId || !currentTime) {
     return res
       .status(400)
       .send(
-        "Missing required fields: memberId, lessonId, currentTime, memberCourse"
+        "Missing required fields: memberId, lessonId, currentTime"
       );
   }
 
-  // Construct the prepared statement
+  // First, get the existing lesson data
+  const selectQuery = `
+    SELECT * FROM member_lesson 
+    WHERE MEMBER_ID = ? AND ID = ?
+  `;
+
+  // Update query
   const updateQuery = `
     UPDATE member_lesson
     SET \`CURRENT_TIME\` = ?
@@ -117,18 +135,40 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
     // Use getConnection to handle individual request transactions
     const connection = await pool.getConnection();
     try {
-      const [updateResults] = await connection.query(updateQuery, [
-        currentTime,
+      // First, retrieve the existing lesson data
+      const [selectResults] = await connection.query(selectQuery, [
         memberId,
         lessonId
       ]);
+        console.log("Retrieved lesson data:", selectResults);
+        
+      const data = selectResults as any[];
+      
+      if (data && data.length > 0) {
+        // Log study time (converted from PHP implementation)
+        await logStudyTime(connection, memberId, lessonId, currentTime, data, logout, login, answer);
+        
+        // Update the current time
+        const [updateResults] = await connection.query(updateQuery, [
+          currentTime,
+          memberId,
+          lessonId
+        ]);
 
-      if ((updateResults as any).affectedRows === 1) {
-        console.log("Lesson time updated successfully");
-        res.send("Lesson time saved!");
+        if ((updateResults as any).affectedRows === 1) {
+          console.log("Lesson time updated successfully");
+          res.json({ 
+            success: true, 
+            message: "Lesson time saved!",
+            data: data[0]
+          });
+        } else {
+          console.log("No lesson found or already finished");
+          res.status(404).send("Lesson not found or already finished");
+        }
       } else {
-        console.log("No lesson found or already finished");
-        res.status(404).send("Lesson not found or already finished");
+        console.log("No lesson data found");
+        res.status(404).send("Lesson not found");
       }
     } finally {
       connection.release(); // Release the connection back to the pool
@@ -138,6 +178,89 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
     res.status(500).send("Error saving lesson time");
   }
 });
+
+// Helper function to log study time (converted from PHP logStudyTime method)
+async function logStudyTime(connection: any, memberId: number, lessonId: number, currentTime: string, lessonData: any[], logout: number, login: number, answer: string) {
+  try {
+    // Get the current record from member_lesson
+    const selectQuery = `SELECT * FROM member_lesson WHERE MEMBER_ID = ? AND ID = ?`;
+    const [oldRecord] = await connection.query(selectQuery, [memberId, lessonId]);
+    
+    if (!oldRecord || oldRecord.length < 1) {
+      return false;
+    }
+    
+    // Convert time format and calculate seconds for old time
+    let strTime = oldRecord[0].CURRENT_TIME;
+    // Add leading zeros if needed (e.g., "5:30" -> "00:05:30")
+    strTime = strTime.replace(/^(\d{1,2}):(\d{2})$/, "00:$1:$2");
+    
+    const timeMatch = strTime.match(/(\d+):(\d+):(\d+)/);
+    if (!timeMatch) return false;
+    
+    const [, hours, minutes, seconds] = timeMatch.map(Number);
+    const timeSeconds = hours * 3600 + minutes * 60 + seconds;
+    
+    // Convert time format and calculate seconds for new time
+    let strTime2 = currentTime;
+    strTime2 = strTime2.replace(/^(\d{1,2}):(\d{2})$/, "00:$1:$2");
+    
+    const timeMatch2 = strTime2.match(/(\d+):(\d+):(\d+)/);
+    if (!timeMatch2) return false;
+    
+    const [, hours2, minutes2, seconds2] = timeMatch2.map(Number);
+    const timeSeconds2 = hours2 * 3600 + minutes2 * 60 + seconds2;
+    
+    // Calculate time difference
+    const diffTime = Math.abs(timeSeconds2 - timeSeconds);
+    
+    if (diffTime !== 0) {
+      // Get lesson data
+      const lessonQuery = `SELECT * FROM member_lesson WHERE ID = ?`;
+      const [lessonResults] = await connection.query(lessonQuery, [lessonId]);
+      
+      if (!lessonResults || lessonResults.length < 1) return false;
+      const lessonRecord = lessonResults[0];
+      
+      // Get course lesson data
+      const courseLessonQuery = `SELECT * FROM course_lesson WHERE ID = ?`;
+      const [courseLessonResults] = await connection.query(courseLessonQuery, [lessonData[0].LESSON_ID]);
+      
+      if (!courseLessonResults || courseLessonResults.length < 1) return false;
+      const courseLessonRecord = courseLessonResults[0];
+      
+      // Convert current time for video study time (replace : with . and remove leading zeros)
+      const studyTimeVideo = currentTime.replace(/:/g, '.').replace(/^0+/, '') || '0';
+      
+      // Insert log record
+      const insertQuery = `
+        INSERT INTO log_study_time 
+        (MEMBER_ID, COURSE_ID, LESSON_ID, MEMBER_COURSE_ID, STUDY_TIME, PAUSE_VIDEO_LOGOUT, LOGIN_START_VIDEO, STUDY_TIME_VIDEO, ANSWER)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      
+      await connection.query(insertQuery, [
+        memberId,
+        courseLessonRecord.COURSE_ID,
+        lessonData[0].LESSON_ID,
+        lessonData[0].MEMBER_COURSE_ID,
+        diffTime,
+        logout,
+        login,
+        studyTimeVideo,
+        answer === 'ไม่มี' ? null : answer
+      ]);
+      
+      console.log(`Study time logged: ${diffTime} seconds difference`);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error logging study time:", error);
+    // Don't throw error to prevent breaking the main update flow
+    return false;
+  }
+}
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
