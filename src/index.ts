@@ -203,12 +203,12 @@ function compareTime(newTime: string, existingTime: string): boolean {
       return minutes * 60 + seconds;
     }
     
-    // Handle HH:MM:SS format but treat as MM:SS (ignore hours, use minutes:seconds)
+    // Handle HH:MM:SS format - treat as MM:SS (HH:MM:SS where HH is actually MM)
     const timeMatch = time.match(/(\d+):(\d+):(\d+)/);
     if (timeMatch) {
       const [, hours, minutes, seconds] = timeMatch.map(Number);
-      // For video time, treat HH:MM:SS as MM:SS (hours become minutes)
-      return minutes * 60 + seconds;
+      // For video time format: treat first part as minutes, second as seconds
+      return hours * 60 + minutes;
     }
     
     return 0;
