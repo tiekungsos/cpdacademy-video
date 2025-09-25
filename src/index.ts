@@ -195,25 +195,29 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
 
 // Helper function to compare time strings and determine if newTime is greater than existingTime
 function compareTime(newTime: string, existingTime: string): boolean {
-  // Convert time format and add leading zeros if needed
-  const formatTime = (time: string): string => {
-    return time.replace(/^(\d{1,2}):(\d{2})$/, "00:$1:$2");
-  };
-
-  const formattedNewTime = formatTime(newTime);
-  const formattedExistingTime = formatTime(existingTime);
-
-  // Parse time into seconds for comparison
+  // Parse time into seconds for comparison - both should be treated as MM:SS format
   const timeToSeconds = (time: string): number => {
-    const timeMatch = time.match(/(\d+):(\d+):(\d+)/);
-    if (!timeMatch) return 0;
+    // Handle MM:SS format (payload format)
+    if (time.match(/^\d{1,2}:\d{2}$/)) {
+      const [minutes, seconds] = time.split(':').map(Number);
+      return minutes * 60 + seconds;
+    }
     
-    const [, hours, minutes, seconds] = timeMatch.map(Number);
-    return hours * 3600 + minutes * 60 + seconds;
+    // Handle HH:MM:SS format but treat as MM:SS (ignore hours, use minutes:seconds)
+    const timeMatch = time.match(/(\d+):(\d+):(\d+)/);
+    if (timeMatch) {
+      const [, hours, minutes, seconds] = timeMatch.map(Number);
+      // For video time, treat HH:MM:SS as MM:SS (hours become minutes)
+      return minutes * 60 + seconds;
+    }
+    
+    return 0;
   };
 
-  const newTimeSeconds = timeToSeconds(formattedNewTime);
-  const existingTimeSeconds = timeToSeconds(formattedExistingTime);
+  const newTimeSeconds = timeToSeconds(newTime);
+  const existingTimeSeconds = timeToSeconds(existingTime);
+  
+  console.log(`Comparing times: ${newTime} (${newTimeSeconds}s) vs ${existingTime} (${existingTimeSeconds}s)`);
 
   return newTimeSeconds > existingTimeSeconds;
 }
