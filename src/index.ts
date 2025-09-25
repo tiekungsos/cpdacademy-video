@@ -148,23 +148,37 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
         // Log study time (converted from PHP implementation)
         await logStudyTime(connection, memberId, lessonId, currentTime, data, logout, login, answer);
         
-        // Update the current time
-        const [updateResults] = await connection.query(updateQuery, [
-          currentTime,
-          memberId,
-          lessonId
-        ]);
+        // Check if new currentTime is greater than existing currentTime
+        const existingTime = data[0].CURRENT_TIME;
+        const shouldUpdate = compareTime(currentTime, existingTime);
+        console.log("Should update current time:", shouldUpdate);
+        
+        if (shouldUpdate) {
+          // Update the current time
+          const [updateResults] = await connection.query(updateQuery, [
+            currentTime,
+            memberId,
+            lessonId
+          ]);
 
-        if ((updateResults as any).affectedRows === 1) {
-          console.log("Lesson time updated successfully");
-          res.json({ 
-            success: true, 
-            message: "Lesson time saved!",
+          if ((updateResults as any).affectedRows === 1) {
+            console.log("Lesson time updated successfully");
+            res.json({ 
+              success: true, 
+              message: "Lesson time saved!",
+              data: data[0]
+            });
+          } else {
+            console.log("No lesson found or already finished");
+            res.status(404).send("Lesson not found or already finished");
+          }
+        } else {
+          console.log("Current time not updated - new time is not greater than existing time");
+          res.json({
+            success: true,
+            message: "Current time not updated - new time is not greater than existing time",
             data: data[0]
           });
-        } else {
-          console.log("No lesson found or already finished");
-          res.status(404).send("Lesson not found or already finished");
         }
       } else {
         console.log("No lesson data found");
@@ -178,6 +192,31 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
     res.status(500).send("Error saving lesson time");
   }
 });
+
+// Helper function to compare time strings and determine if newTime is greater than existingTime
+function compareTime(newTime: string, existingTime: string): boolean {
+  // Convert time format and add leading zeros if needed
+  const formatTime = (time: string): string => {
+    return time.replace(/^(\d{1,2}):(\d{2})$/, "00:$1:$2");
+  };
+
+  const formattedNewTime = formatTime(newTime);
+  const formattedExistingTime = formatTime(existingTime);
+
+  // Parse time into seconds for comparison
+  const timeToSeconds = (time: string): number => {
+    const timeMatch = time.match(/(\d+):(\d+):(\d+)/);
+    if (!timeMatch) return 0;
+    
+    const [, hours, minutes, seconds] = timeMatch.map(Number);
+    return hours * 3600 + minutes * 60 + seconds;
+  };
+
+  const newTimeSeconds = timeToSeconds(formattedNewTime);
+  const existingTimeSeconds = timeToSeconds(formattedExistingTime);
+
+  return newTimeSeconds > existingTimeSeconds;
+}
 
 // Helper function to log study time (converted from PHP logStudyTime method)
 async function logStudyTime(connection: any, memberId: number, lessonId: number, currentTime: string, lessonData: any[], logout: number, login: number, answer: string) {
