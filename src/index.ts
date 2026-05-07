@@ -148,12 +148,14 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
         // Log study time (converted from PHP implementation)
         await logStudyTime(connection, memberId, lessonId, currentTime, data, logout, login, answer);
         
+        const hasAnswer = answer === 'ถูกต้อง' || answer === 'ผิด';
+        
         // Check if new currentTime is greater than existing currentTime
         const existingTime = data[0].CURRENT_TIME;
         const shouldUpdate = compareTime(currentTime, existingTime);
-        console.log("Should update current time:", shouldUpdate);
+        console.log("Should update current time:", shouldUpdate, "hasAnswer:", hasAnswer);
         
-        if (shouldUpdate) {
+        if (shouldUpdate || hasAnswer) {
           // Update the current time
           const [updateResults] = await connection.query(updateQuery, [
             currentTime,
@@ -170,7 +172,11 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
             });
           } else {
             console.log("No lesson found or already finished");
-            res.status(404).send("Lesson not found or already finished");
+            res.json({
+              success: true,
+              message: hasAnswer ? "Answer saved!" : "Lesson not found or already finished",
+              data: data[0]
+            });
           }
         } else {
           console.log("Current time not updated - new time is not greater than existing time");
@@ -233,31 +239,35 @@ async function logStudyTime(connection: any, memberId: number, lessonId: number,
       return false;
     }
     
+    const hasAnswer = answer === 'ถูกต้อง' || answer === 'ผิด';
+    
     // Convert time format and calculate seconds for old time
     let strTime = oldRecord[0].CURRENT_TIME;
     // Add leading zeros if needed (e.g., "5:30" -> "00:05:30")
     strTime = strTime.replace(/^(\d{1,2}):(\d{2})$/, "00:$1:$2");
     
+    let timeSeconds = 0;
     const timeMatch = strTime.match(/(\d+):(\d+):(\d+)/);
-    if (!timeMatch) return false;
-    
-    const [, hours, minutes, seconds] = timeMatch.map(Number);
-    const timeSeconds = hours * 3600 + minutes * 60 + seconds;
+    if (timeMatch) {
+      const [, hours, minutes, seconds] = timeMatch.map(Number);
+      timeSeconds = hours * 3600 + minutes * 60 + seconds;
+    } else if (!hasAnswer) return false;
     
     // Convert time format and calculate seconds for new time
     let strTime2 = currentTime;
     strTime2 = strTime2.replace(/^(\d{1,2}):(\d{2})$/, "00:$1:$2");
     
+    let timeSeconds2 = 0;
     const timeMatch2 = strTime2.match(/(\d+):(\d+):(\d+)/);
-    if (!timeMatch2) return false;
-    
-    const [, hours2, minutes2, seconds2] = timeMatch2.map(Number);
-    const timeSeconds2 = hours2 * 3600 + minutes2 * 60 + seconds2;
+    if (timeMatch2) {
+      const [, hours2, minutes2, seconds2] = timeMatch2.map(Number);
+      timeSeconds2 = hours2 * 3600 + minutes2 * 60 + seconds2;
+    } else if (!hasAnswer) return false;
     
     // Calculate time difference
     const diffTime = Math.abs(timeSeconds2 - timeSeconds);
     
-    if (diffTime !== 0) {
+    if (diffTime !== 0 || hasAnswer) {
       // Get lesson data
       const lessonQuery = `SELECT * FROM member_lesson WHERE ID = ?`;
       const [lessonResults] = await connection.query(lessonQuery, [lessonId]);
