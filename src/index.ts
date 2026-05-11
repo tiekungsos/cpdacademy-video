@@ -240,6 +240,7 @@ async function logStudyTime(connection: any, memberId: number, lessonId: number,
     }
     
     const hasAnswer = answer === 'ถูกต้อง' || answer === 'ผิด';
+    const hasLogoutOrLogin = logout === 1 || login === 1;
     
     // Convert time format and calculate seconds for old time
     let strTime = oldRecord[0].CURRENT_TIME;
@@ -251,7 +252,7 @@ async function logStudyTime(connection: any, memberId: number, lessonId: number,
     if (timeMatch) {
       const [, hours, minutes, seconds] = timeMatch.map(Number);
       timeSeconds = hours * 3600 + minutes * 60 + seconds;
-    } else if (!hasAnswer) return false;
+    } else if (!hasAnswer && !hasLogoutOrLogin) return false;
     
     // Convert time format and calculate seconds for new time
     let strTime2 = currentTime;
@@ -262,12 +263,12 @@ async function logStudyTime(connection: any, memberId: number, lessonId: number,
     if (timeMatch2) {
       const [, hours2, minutes2, seconds2] = timeMatch2.map(Number);
       timeSeconds2 = hours2 * 3600 + minutes2 * 60 + seconds2;
-    } else if (!hasAnswer) return false;
+    } else if (!hasAnswer && !hasLogoutOrLogin) return false;
     
     // Calculate time difference
     const diffTime = Math.abs(timeSeconds2 - timeSeconds);
     
-    if (diffTime !== 0 || hasAnswer) {
+    if (diffTime !== 0 || hasAnswer || hasLogoutOrLogin) {
       // Get lesson data
       const lessonQuery = `SELECT * FROM member_lesson WHERE ID = ?`;
       const [lessonResults] = await connection.query(lessonQuery, [lessonId]);
