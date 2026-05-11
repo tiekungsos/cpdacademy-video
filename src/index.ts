@@ -149,13 +149,14 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
         await logStudyTime(connection, memberId, lessonId, currentTime, data, logout, login, answer);
         
         const hasAnswer = answer === 'ถูกต้อง' || answer === 'ผิด';
+        const hasLogoutOrLogin = logout === 1 || login === 1;
         
         // Check if new currentTime is greater than existing currentTime
         const existingTime = data[0].CURRENT_TIME;
         const shouldUpdate = compareTime(currentTime, existingTime);
-        console.log("Should update current time:", shouldUpdate, "hasAnswer:", hasAnswer);
+        console.log("Should update current time:", shouldUpdate, "hasAnswer:", hasAnswer, "hasLogoutOrLogin:", hasLogoutOrLogin);
         
-        if (shouldUpdate || hasAnswer) {
+        if (shouldUpdate || hasAnswer || hasLogoutOrLogin) {
           // Update the current time
           const [updateResults] = await connection.query(updateQuery, [
             currentTime,
@@ -174,7 +175,7 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
             console.log("No lesson found or already finished");
             res.json({
               success: true,
-              message: hasAnswer ? "Answer saved!" : "Lesson not found or already finished",
+              message: hasAnswer ? "Answer saved!" : (hasLogoutOrLogin ? "Logout/Login saved!" : "Lesson not found or already finished"),
               data: data[0]
             });
           }
