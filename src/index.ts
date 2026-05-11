@@ -149,7 +149,7 @@ app.post("/lesson/dwUpdateTime", async (req, res) => {
         await logStudyTime(connection, memberId, lessonId, currentTime, data, logout, login, answer);
         
         const hasAnswer = answer === 'ถูกต้อง' || answer === 'ผิด';
-        const hasLogoutOrLogin = logout === 1 || login === 1;
+        const hasLogoutOrLogin = logout == 1 || login == 1;
         
         // Check if new currentTime is greater than existing currentTime
         const existingTime = data[0].CURRENT_TIME;
@@ -241,7 +241,7 @@ async function logStudyTime(connection: any, memberId: number, lessonId: number,
     }
     
     const hasAnswer = answer === 'ถูกต้อง' || answer === 'ผิด';
-    const hasLogoutOrLogin = logout === 1 || login === 1;
+    const hasLogoutOrLogin = logout == 1 || login == 1;
     
     // Convert time format and calculate seconds for old time
     let strTime = oldRecord[0].CURRENT_TIME;
